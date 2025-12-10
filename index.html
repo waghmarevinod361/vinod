@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="mr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>माझी फायली (Local)</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width:720px; margin:30px auto; padding:0 16px; line-height:1.5; }
+    header{display:flex;align-items:center;gap:12px}
+    h1{font-size:20px;margin:0}
+    .card{border:1px solid #ddd;padding:14px;border-radius:8px;margin-top:12px}
+    input[type=file]{display:block;margin-top:8px}
+    button{margin-top:8px;padding:8px 12px;border-radius:6px;border:1px solid #2b6; background:#fff}
+    ul{padding-left:18px}
+    .file-item{display:flex;justify-content:space-between;align-items:center;margin:6px 0}
+    .small{font-size:13px;color:#666}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>माझी फायली (Local)</h1>
+  </header>
+
+  <div class="card">
+    <div class="small">हा पेज फक्त तुमच्या ब्राउझरमध्ये फायली साठवतो (localStorage). संवेदनशील फायलीसाठी cloud वापरा.</div>
+
+    <label for="fileInput">फाईल निवडा (एक किंवा अनेक)</label>
+    <input id="fileInput" type="file" multiple>
+
+    <div>
+      <button id="saveBtn">अपलोड आणि साठव</button>
+      <button id="clearBtn">सर्व फायली हटवा</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>साठवलेल्या फायली</h3>
+    <div id="filesList">लोड करत आहे...</div>
+  </div>
+
+<script>
+const FILE_STORE_KEY = 'my_local_files_v1';
+
+function readStore() {
+  try {
+    const raw = localStorage.getItem(FILE_STORE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) {
+    console.error(e);
+    return [];
+  }
+}
+function writeStore(arr) {
+  localStorage.setItem(FILE_STORE_KEY, JSON.stringify(arr));
+}
+
+function renderList() {
+  const container = document.getElementById('filesList');
+  const files = readStore();
+  if (!files.length) { container.innerHTML = '<div class="small">कोनीही फाईल साठवलेली नाही.</div>'; return; }
+  const ul = document.createElement('ul');
+  files.forEach((f, idx) => {
+    const li = document.createElement('li');
+    li.className = 'file-item';
+    const left = document.createElement('div');
+    left.innerHTML = `<strong>${escapeHtml(f.name)}</strong> <span class="small">(${f.size} bytes)</span>`;
+    const right = document.createElement('div');
+    const a = document.createElement('a');
+    a.href = f.data;
+    a.download = f.name;
+    a.textContent = 'डाउनलोड';
+    a.style.marginRight = '10px';
+    const del = document.createElement('button');
+    del.textContent = 'हटवा';
+    del.onclick = ()=>{ removeFile(idx); };
+    right.appendChild(a);
+    right.appendChild(del);
+    li.appendChild(left);
+    li.appendChild(right);
+    ul.appendChild(li);
+  });
+  container.innerHTML = '';
+  container.appendChild(ul);
+}
+
+function removeFile(index) {
+  const arr = readStore();
+  arr.splice(index,1);
+  writeStore(arr);
+  renderList();
+}
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  const input = document.getElementById('fileInput');
+  if (!input.files.length) { alert('कृपया एक फाइल निवडा.'); return; }
+  const files = Array.from(input.files);
+  const store = readStore();
+  for (const f of files) {
+    // Limit: localStorage size varies; large फाइल्स अपलोड करू नका
+    const dataUrl = await fileToDataURL(f);
+    store.push({ name: f.name, size: f.size, type: f.type, data: dataUrl, created: Date.now() });
+  }
+  writeStore(store);
+  input.value = '';
+  renderList();
+  alert('फाइल साठवली गेली.');
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  if (!confirm('सर्व साठवलेल्या फायली हटवूयात का?')) return;
+  localStorage.removeItem(FILE_STORE_KEY);
+  renderList();
+});
+
+function fileToDataURL(file){
+  return new Promise((res, rej)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>res(reader.result);
+    reader.onerror = ()=>rej('File read error');
+    reader.readAsDataURL(file);
+  });
+}
+
+function escapeHtml(s){ return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+// आरंभी लिस्ट रेंडर करा
+renderList();
+</script>
+</body>
+</html>
+
